@@ -5,7 +5,7 @@ http_response_code(500);
 
 function delete_coordinador(mysqli $mysql, int $id) {
   http_response_code(400);
-  $query = "DELETE FROM coordinador WHERE id = ?";
+  $query = "DELETE FROM coordinador WHERE idC = ?";
 
   $result = $mysql->execute_query($query, [$id]);
 
