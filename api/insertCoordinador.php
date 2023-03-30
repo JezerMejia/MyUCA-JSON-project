@@ -37,12 +37,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
   $conn = Connection::get_instance();
   $mysql = $conn->connect();
 
-  $nombres = $_POST["nombres"];
-  $apellidos = $_POST["apellidos"];
-  $fechaNac = $_POST["fechaNac"];
-  $titulo = $_POST["titulo"];
-  $email = $_POST["email"];
-  $facultad = $_POST["facultad"];
+  $body = file_get_contents("php://input");
+  $json = json_decode($body);
+
+  $nombres = $json->nombres;
+  $apellidos = $json->apellidos;
+  $fechaNac = $json->fechaNac;
+  $titulo = $json->titulo;
+  $email = $json->email;
+  $facultad = $json->facultad;
 
   insert_coordinador(
     $mysql,

@@ -44,6 +44,7 @@ function get_all_coordinadores(mysqli $mysql): string {
       $coordinadores = $coordinadores . parse_coordinador($row);
       $coordinadores = $coordinadores . ",";
     }
+    $coordinadores = rtrim($coordinadores, ",");
 
     $coordinadores = trim($coordinadores);
     $coordinadores = $coordinadores . "]}";
