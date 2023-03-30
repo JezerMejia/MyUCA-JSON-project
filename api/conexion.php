@@ -6,7 +6,7 @@ class Connection {
 
   private function __construct() {
     $hostname = "localhost";
-    $database = "MyUCA";
+    $database = "myuca";
     $username = "root";
     $password = "Usuario123.";
 
