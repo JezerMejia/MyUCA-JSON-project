@@ -8,7 +8,7 @@ class Connection {
     $hostname = "localhost";
     $database = "MyUCA";
     $username = "root";
-    $password = "";
+    $password = "Usuario123.";
 
     $this->mysql = new mysqli($hostname, $username, $password, $database);
   }
