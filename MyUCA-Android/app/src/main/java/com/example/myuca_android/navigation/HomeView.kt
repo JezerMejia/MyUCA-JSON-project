@@ -19,16 +19,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import com.example.myuca_android.Coordinador
+import com.example.myuca_android.R
 import com.example.myuca_android.data.CoordinadorManager
 import com.example.myuca_android.ui.theme.MyUCAAndroidTheme
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -38,14 +40,16 @@ enum class ConnectionState {
     ERROR,
 }
 
-@OptIn(ExperimentalMaterialApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun HomeView(navController: NavHostController, coordinadoresList: List<Coordinador> = listOf()) {
-    val composableScope = rememberCoroutineScope()
     val context = LocalContext.current
 
     val coordinadores = remember { mutableStateListOf<Coordinador>() }
     val dbConnected = remember { mutableStateOf(ConnectionState.WAITING) }
+
+    var filteredList = remember {
+        mutableStateOf(mutableListOf<Coordinador>())
+    }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -83,6 +87,19 @@ fun HomeView(navController: NavHostController, coordinadoresList: List<Coordinad
         topBar = {
             AppBar("Coordinadores", actions = {
                 IconButton(onClick = {
+                    if (filteredList.value.size > 0) {
+                        filteredList.value.clear()
+                    } else {
+                        val result = coordinadores.filter { c -> c.getAge() > 60 }
+                        filteredList.value = result.toMutableStateList()
+                    }
+                }) {
+                    Icon(
+                        painterResource(R.drawable.baseline_filter_list_24),
+                        contentDescription = "Filtrar"
+                    )
+                }
+                IconButton(onClick = {
                     loadData()
                 }) {
                     Icon(Icons.Filled.Refresh, contentDescription = "Cargar")
@@ -101,101 +118,22 @@ fun HomeView(navController: NavHostController, coordinadoresList: List<Coordinad
         if (dbConnected.value == ConnectionState.WAITING) {
             LoadingMessage(innerPadding)
         } else if (coordinadores.size > 0 && dbConnected.value == ConnectionState.OK) {
-            LazyColumn(
-                contentPadding = innerPadding,
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                items(items = coordinadores, key = { c -> c.id }) { coordinador ->
-                    val currentItem by rememberUpdatedState(coordinador)
-                    val dismissState: DismissState = rememberDismissState()
-
-                    if (dismissState.currentValue == DismissValue.DismissedToStart) {
-                        AlertDialog(
-                            onDismissRequest = {
-                                composableScope.launch(Dispatchers.IO) {
-                                    dismissState.reset()
-                                }
-                            },
-                            title = { Text("Eliminar coordinador") },
-                            text = { Text("¿Está seguro/a de eliminar el coordinador \"${currentItem.getFullName()}?\"") },
-                            dismissButton = {
-                                TextButton(onClick = {
-                                    composableScope.launch(Dispatchers.IO) {
-                                        dismissState.reset()
-                                    }
-                                }) {
-                                    Text("Cancelar")
-                                }
-                            },
-                            confirmButton = {
-                                TextButton(
-                                    onClick = {
-                                        val manager = CoordinadorManager(context)
-                                        manager.deleteCoordinador(
-                                            currentItem.id,
-                                            {
-                                                composableScope.launch(Dispatchers.IO) {
-                                                    dismissState.reset()
-                                                    scaffoldState.snackbarHostState.showSnackbar(
-                                                        "El coordinador fue eliminado",
-                                                    )
-                                                }
-                                                coordinadores.remove(currentItem)
-                                            }, {
-                                                composableScope.launch(Dispatchers.IO) {
-                                                    scaffoldState.snackbarHostState.showSnackbar(
-                                                        "El coordinador no se pudo eliminar",
-                                                        duration = SnackbarDuration.Long
-                                                    )
-                                                    dismissState.reset()
-                                                }
-                                            })
-                                    }
-                                ) {
-                                    Text("Eliminar")
-                                }
-                            }
-                        )
-                    }
-
-                    SwipeToDismiss(
-                        state = dismissState,
-                        modifier = Modifier.animateItemPlacement(),
-                        directions = setOf(DismissDirection.EndToStart),
-                        background = {
-                            val color by animateColorAsState(
-                                when (dismissState.targetValue) {
-                                    DismissValue.DismissedToStart -> Color.Red
-                                    else -> Color.LightGray
-                                }
-                            )
-                            Box(
-                                Modifier
-                                    .fillMaxSize()
-                                    .background(color)
-                                    .padding(horizontal = 20.dp),
-                                contentAlignment = Alignment.CenterEnd
-                            ) {
-                                Icon(
-                                    Icons.Default.Delete,
-                                    contentDescription = "Localized description",
-                                )
-                            }
-                        },
-                        dismissContent = {
-                            ListItem(
-                                modifier = Modifier
-                                    .clickable {
-                                        navController.navigate("modify/${currentItem.id}")
-                                    }
-                                    .background(MaterialTheme.colors.background),
-                                text = { Text(currentItem.getFullName()) },
-                                secondaryText = { Text("${currentItem.titulo} - ${currentItem.facultad}") },
-                                trailing = { Text("${currentItem.getAge()} años") }
-                            )
-                        }
-                    )
-                }
+            if (filteredList.value.size == 0) {
+                ItemList(
+                    innerPadding,
+                    coordinadores,
+                    coordinadores,
+                    navController,
+                    scaffoldState
+                )
+            } else {
+                ItemList(
+                    innerPadding,
+                    coordinadores,
+                    filteredList.value,
+                    navController,
+                    scaffoldState
+                )
             }
         } else if (dbConnected.value == ConnectionState.OK) {
             NoDataMessage(innerPadding)
@@ -203,6 +141,118 @@ fun HomeView(navController: NavHostController, coordinadoresList: List<Coordinad
             ErrorMessage(innerPadding)
         }
 
+    }
+}
+
+@OptIn(ExperimentalMaterialApi::class, ExperimentalFoundationApi::class)
+@Composable
+fun ItemList(
+    innerPadding: PaddingValues,
+    coordinadores: MutableList<Coordinador>,
+    list: MutableList<Coordinador>,
+    navController: NavController,
+    scaffoldState: ScaffoldState
+) {
+    val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+    LazyColumn(
+        contentPadding = innerPadding,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items(items = list, key = { c -> c.id }) { coordinador ->
+            val currentItem by rememberUpdatedState(coordinador)
+            val dismissState: DismissState = rememberDismissState()
+
+            if (dismissState.currentValue == DismissValue.DismissedToStart) {
+                AlertDialog(
+                    onDismissRequest = {
+                        coroutineScope.launch {
+                            dismissState.reset()
+                        }
+                    },
+                    title = { Text("Eliminar coordinador") },
+                    text = { Text("¿Está seguro/a de eliminar el coordinador \"${currentItem.getFullName()}?\"") },
+                    dismissButton = {
+                        TextButton(onClick = {
+                            coroutineScope.launch {
+                                dismissState.reset()
+                            }
+                        }) {
+                            Text("Cancelar")
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                val manager = CoordinadorManager(context)
+                                manager.deleteCoordinador(
+                                    currentItem.id,
+                                    {
+                                        coroutineScope.launch {
+                                            dismissState.reset()
+                                            scaffoldState.snackbarHostState.showSnackbar(
+                                                "El coordinador fue eliminado",
+                                            )
+                                        }
+                                        if (coordinadores != list) {
+                                            list.remove(currentItem)
+                                        }
+                                        coordinadores.remove(currentItem)
+                                    }, {
+                                        coroutineScope.launch {
+                                            scaffoldState.snackbarHostState.showSnackbar(
+                                                "El coordinador no se pudo eliminar",
+                                                duration = SnackbarDuration.Long
+                                            )
+                                            dismissState.reset()
+                                        }
+                                    })
+                            }
+                        ) {
+                            Text("Eliminar")
+                        }
+                    }
+                )
+            }
+
+            SwipeToDismiss(
+                state = dismissState,
+                modifier = Modifier.animateItemPlacement(),
+                directions = setOf(DismissDirection.EndToStart),
+                background = {
+                    val color by animateColorAsState(
+                        when (dismissState.targetValue) {
+                            DismissValue.DismissedToStart -> Color.Red
+                            else -> Color.LightGray
+                        }
+                    )
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(color)
+                            .padding(horizontal = 20.dp),
+                        contentAlignment = Alignment.CenterEnd
+                    ) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = "Localized description",
+                        )
+                    }
+                },
+                dismissContent = {
+                    ListItem(
+                        modifier = Modifier
+                            .clickable {
+                                navController.navigate("modify/${currentItem.id}")
+                            }
+                            .background(MaterialTheme.colors.background),
+                        text = { Text(currentItem.getFullName()) },
+                        secondaryText = { Text("${currentItem.titulo} - ${currentItem.facultad}") },
+                        trailing = { Text("${currentItem.getAge()} años") }
+                    )
+                }
+            )
+        }
     }
 }
 
